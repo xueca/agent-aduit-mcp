@@ -1,4 +1,4 @@
-﻿// trace 存储：Map + RingBuffer，trace 生命周期管理
+﻿// trace 存储：Map + RingBuffer，trace 生命周期管理与淘汰
 import { RingBuffer } from '../buffer/ring-buffer.js'
 import { uuidV7 } from '../utils/id.js'
 import { nowIso } from '../utils/time.js'
@@ -12,11 +12,15 @@ interface TraceEntry {
 
 export class TraceStore {
   private readonly maxBufferSize: number
+  private readonly maxTraces: number
+  private readonly traceTtlMs: number | undefined
   private readonly traces = new Map<string, TraceEntry>()
 
-  constructor(options: { maxBufferSize: number }) {
-    const { maxBufferSize } = options
+  constructor(options: { maxBufferSize: number; maxTraces?: number; traceTtlMs?: number }) {
+    const { maxBufferSize, maxTraces = 1000, traceTtlMs } = options
     this.maxBufferSize = maxBufferSize > 0 ? maxBufferSize : 1000
+    this.maxTraces = maxTraces > 0 ? maxTraces : 1000
+    this.traceTtlMs = traceTtlMs !== undefined && traceTtlMs > 0 ? traceTtlMs : undefined
   }
 
   startTrace(input: { agentName: string; taskIntent: string }): TraceSession {
@@ -33,6 +37,7 @@ export class TraceStore {
       session,
       buffer: new RingBuffer<AgentLogEvent>({ maxSize: this.maxBufferSize })
     })
+    this.evictIfNeeded()
     return session
   }
 
@@ -62,6 +67,7 @@ export class TraceStore {
     }
     entry.session.status = status
     entry.session.endTime = nowIso()
+    this.evictIfNeeded()
     return entry.session
   }
 
@@ -71,5 +77,48 @@ export class TraceStore {
       throw new AuditError(AUDIT_ERROR_CODES.TRACE_NOT_FOUND, `trace 不存在: ${traceId}`)
     }
     return { session: entry.session, events: entry.buffer.toArray() }
+  }
+
+  private evictIfNeeded(): void {
+    this.evictExpired()
+    while (this.traces.size > this.maxTraces) {
+      const oldestId = this.findOldestTerminalId()
+      if (oldestId === undefined) {
+        return
+      }
+      this.traces.delete(oldestId)
+    }
+  }
+
+  private evictExpired(): void {
+    if (this.traceTtlMs === undefined) {
+      return
+    }
+    const cutoffMs = Date.now() - this.traceTtlMs
+    for (const [traceId, entry] of this.traces) {
+      if (entry.session.status === 'active') {
+        continue
+      }
+      const endMs = Date.parse(entry.session.endTime ?? entry.session.startTime)
+      if (endMs < cutoffMs) {
+        this.traces.delete(traceId)
+      }
+    }
+  }
+
+  private findOldestTerminalId(): string | undefined {
+    let oldestId: string | undefined
+    let oldestMs = Infinity
+    for (const [traceId, entry] of this.traces) {
+      if (entry.session.status === 'active') {
+        continue
+      }
+      const startMs = Date.parse(entry.session.startTime)
+      if (startMs < oldestMs) {
+        oldestMs = startMs
+        oldestId = traceId
+      }
+    }
+    return oldestId
   }
 }

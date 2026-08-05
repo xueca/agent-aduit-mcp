@@ -12,8 +12,8 @@ import { toolError, toolOk } from './index.js'
 import type { ToolDefinition } from './index.js'
 
 const ExportReportInputSchema = z.object({
-  eventId: z.string().min(1).optional(),
-  traceId: z.string().min(1).optional()
+  eventId: z.string().min(1).max(128).optional(),
+  traceId: z.string().min(1).max(128).optional()
 })
 
 export function createExportReportTool(storageDirs: string[]): ToolDefinition {

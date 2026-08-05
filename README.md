@@ -1,8 +1,8 @@
 # @agent-audit/mcp-server
 
-[![GitHub Packages](https://img.shields.io/badge/GitHub%20Packages-@agent--audit/mcp--server-blue)](https://github.com/xueca/agent-aduit-mcp/pkgs/npm/@agent-audit/mcp-server)
+[![GitHub Packages](https://img.shields.io/badge/GitHub%20Packages-@agent--audit/mcp--server-blue)](https://github.com/xueca/agent-audit-mcp/pkgs/npm/@agent-audit/mcp-server)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node.js >= 18](https://img.shields.io/badge/Node.js-%3E%3D%2018-brightgreen)](https://nodejs.org/)
+[![Node.js >= 21](https://img.shields.io/badge/Node.js-%3E%3D%2021-brightgreen)](https://nodejs.org/)
 
 Agent 修复任务的行为审计 MCP Server：让 AI Agent 从输入、推理、决策到执行、验证的全过程留下结构化审计日志。
 
@@ -31,25 +31,23 @@ AI Agent 在自动修复代码时往往像"黑盒"：改了什么、为什么改
 
 ## 前置要求
 
-- **Node.js** >= 18.0.0（MCP SDK 依赖；`npm test` 建议 Node >= 21）
+- **Node.js** >= 21.0.0（`npm test` 依赖 Node >= 21 的测试运行器 glob 支持）
 - 支持 MCP 的 AI 编码助手客户端（Claude Code / Trae / Cursor / Windsurf / Codex 等），或 Node.js 环境直接以 CLI/SDK 方式运行
 
 ## 安装
 
-### 方式一：npm 安装
+### 方式一：本地构建（推荐，包尚未发布 npm）
+
+包尚未发布到 npm registry（`npm install @agent-audit/mcp-server` 会返回 E404），请使用本地构建方式：
 
 ```bash
-npm install @agent-audit/mcp-server
-```
-
-### 方式二：本地开发安装
-
-```bash
-git clone https://github.com/xueca/agent-aduit-mcp.git
+git clone https://github.com/xueca/agent-audit-mcp.git
 cd agent-audit-mcp
 npm install
 npm run build
 ```
+
+构建产物位于 `dist/`，可用 `node dist/src/cli.js` 启动 MCP Server。
 
 ## 快速开始
 
@@ -61,14 +59,14 @@ npm run build
 {
   "mcpServers": {
     "agent-audit": {
-      "command": "npx",
-      "args": ["-y", "@agent-audit/mcp-server"]
+      "command": "node",
+      "args": ["<仓库路径>/dist/src/cli.js"]
     }
   }
 }
 ```
 
-本地开发调试可改为 `"command": "node", "args": ["dist/src/cli.js"]`。启动后即暴露 5 个审计工具，事件默认落盘到 `./audit-events.jsonl/` 目录（按天生成 `audit-YYYY-MM-DD.jsonl`）。
+将 `command` 指向本地构建产物 `dist/src/cli.js` 即可。启动后即暴露 5 个审计工具，事件默认落盘到 `./audit-events.jsonl/` 目录（按天生成 `audit-YYYY-MM-DD.jsonl`）。
 
 > 本项目已通过 [.trae/mcp.json](../../.trae/mcp.json) 预配置 agent-audit，Trae 打开项目后 Agent 自动可用，无需手动注册。
 
@@ -300,7 +298,7 @@ agent-audit [选项]
 npm run build       # tsc 编译到 dist/
 npm run lint        # ESLint 检查（src/tests/sdk/examples）
 npm run typecheck   # tsc --noEmit 类型检查
-npm test            # 编译后运行 node:test，共 77 个测试
+npm test            # 编译后运行 node:test，全部测试
 npm run clean       # 删除 dist/
 ```
 
@@ -328,7 +326,7 @@ docs/               文档
 
 ## 已知限制
 
-- 运行环境要求 Node.js ≥ 18（`engines`）；`npm test` 的 `node --test dist/tests/*.test.js` 依赖 Node ≥ 21 的测试运行器 glob 支持。
+- 运行环境要求 Node.js ≥ 21（`engines` 与 `npm test` 的测试运行器 glob 支持对齐）。
 - 当前构建产物为 CommonJS（tsconfig `module: NodeNext`，未声明 `"type": "module"`），ESM / 双格式发布留待后续版本。
 - 存储仅支持 JSONL（`storage` 固定为 `jsonl`）；`writers[].filePath` 为目录而非单文件，内部按天分片并自动清理 7 天前的文件。
 - redaction 配置字段当前仅解析、尚未生效（事件仍明文落盘）。

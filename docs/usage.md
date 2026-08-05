@@ -92,15 +92,16 @@ node dist/src/cli.js --log-level info --config ./agent-audit.config.json
 ## 六、SDK（写代码接入）
 
 ```ts
-import { wrapAgent } from "@agent-audit/sdk"
+import { wrapAgent } from "@agent-audit/mcp-server/sdk"
 
-const { tools, closeAudit } = wrapAgent({
-  tools: myAgentTools,            // 你的 Agent 工具列表
-  serverUrl: "stdio",             // 或 MCP 地址
-  taskIntent: "修复登录接口 400"
+const wrapped = wrapAgent(myAgent, {
+  agentName: "demo-agent",
+  taskIntent: "修复登录接口 400",
+  command: "node",
+  args: ["dist/src/cli.js"]
 })
 // tools 已被包装：成功调用自动记录 EXECUTION/info，失败记录 EXECUTION/error
-await closeAudit()                // 结束审计并落盘
+await wrapped.closeAudit?.()      // 结束审计并落盘
 ```
 
 - 审计 Server 不可用时**静默降级**：记录失败返回 null、不抛错，业务零影响。
@@ -134,5 +135,5 @@ await closeAudit()                // 结束审计并落盘
 npm run lint       # ESLint（2 空格、无分号、禁 Sync、行数限制）
 npm run typecheck  # tsc --noEmit
 npm run build      # 构建到 dist/
-npm test           # node:test，共 77 个测试
+npm test           # node:test，全部测试
 ```

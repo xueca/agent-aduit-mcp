@@ -31,7 +31,7 @@ export async function setup(): Promise<TestContext> {
   const config: AgentAuditConfig = {
     ...DEFAULT_CONFIG,
     writers: [{ type: 'jsonl', filePath: dir }],
-    flush: { intervalMs: 999999, sizeThreshold: 100 }
+    flush: { ...DEFAULT_CONFIG.flush, intervalMs: 999999, sizeThreshold: 100 }
   }
   const bundle = await createAuditServer(config)
   const pair = InMemoryTransport.createLinkedPair()

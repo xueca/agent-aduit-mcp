@@ -4,6 +4,7 @@ import { promises as fs } from 'node:fs'
 import * as path from 'node:path'
 import * as os from 'node:os'
 import { DEFAULT_CONFIG } from '../src/config/defaults.js'
+import { AgentAuditConfigSchema } from '../src/config/schema.js'
 import { parseEnvConfig } from '../src/config/env.js'
 import { loadConfig } from '../src/config/loader.js'
 import { AUDIT_ERROR_CODES, AuditError } from '../src/errors/audit-error.js'
@@ -112,6 +113,23 @@ test('配置文件 JSON 非法时抛 CONFIG_INVALID', async () => {
       assert.equal(error.code, AUDIT_ERROR_CODES.CONFIG_INVALID)
       return true
     })
+  } finally {
+    await fs.rm(tempDir, { recursive: true, force: true })
+  }
+})
+test('flush.retry 架构解析与 AGENT_AUDIT_FLUSH_RETRY 环境变量', () => {
+  const parsed = AgentAuditConfigSchema.parse({})
+  assert.equal(parsed.flush.pendingLimit, undefined)
+  assert.equal(parsed.flush.retry, undefined)
+  const result = parseEnvConfig({ AGENT_AUDIT_FLUSH_RETRY: '5' })
+  assert.deepEqual(result.flush?.retry, { maxAttempts: 5 })
+})
+
+test('loadConfig 应用 AGENT_AUDIT_FLUSH_RETRY 且 retry 子字段取默认', async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'audit-cfg-'))
+  try {
+    const config = await loadConfig({ env: { AGENT_AUDIT_FLUSH_RETRY: '2' }, cwd: tempDir })
+    assert.deepEqual(config.flush.retry, { maxAttempts: 2, baseDelayMs: 100, backoffFactor: 3 })
   } finally {
     await fs.rm(tempDir, { recursive: true, force: true })
   }

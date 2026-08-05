@@ -15,19 +15,47 @@ export interface AuditServerBundle {
   service: AuditService
 }
 
+export interface WriterRegistration {
+  type: string
+  filePath: string
+}
+
+export type WriterFactory = (item: WriterRegistration) => IWriter
+
+const writerFactories = new Map<string, WriterFactory>([
+  ['jsonl', (item) => new JsonlWriter({ filePath: item.filePath })]
+])
+
+export function registerWriter(type: string, factory: WriterFactory): void {
+  if (type.length === 0) {
+    throw new AuditError(AUDIT_ERROR_CODES.CONFIG_INVALID, 'writer 类型不能为空')
+  }
+  writerFactories.set(type, factory)
+}
+
+function buildWriters(items: AgentAuditConfig['writers']): IWriter[] {
+  const writers: IWriter[] = []
+  const seenPaths = new Set<string>()
+  for (const item of items) {
+    if (seenPaths.has(item.filePath)) {
+      throw new AuditError(AUDIT_ERROR_CODES.CONFIG_INVALID, 'writer 路径重复: ' + item.filePath)
+    }
+    seenPaths.add(item.filePath)
+    const factory = writerFactories.get(item.type)
+    if (factory === undefined) {
+      throw new AuditError(AUDIT_ERROR_CODES.CONFIG_INVALID, '不支持的 writer 类型: ' + item.type)
+    }
+    writers.push(factory(item))
+  }
+  return writers
+}
+
 export async function createAuditServer(config: AgentAuditConfig): Promise<AuditServerBundle> {
   const mcpServer = new McpServer(
     { name: 'agent-audit', version: '0.1.0' },
     { capabilities: { tools: {}, logging: {} } }
   )
-  const writers: IWriter[] = []
-  for (const item of config.writers) {
-    if (item.type !== 'jsonl') {
-      throw new AuditError(AUDIT_ERROR_CODES.CONFIG_INVALID, '不支持的 writer 类型: ' + item.type)
-    }
-    writers.push(new JsonlWriter({ filePath: item.filePath }))
-  }
-  const writer = new CompositeWriter(writers)
+  const writer = new CompositeWriter(buildWriters(config.writers))
   const store = new TraceStore({ maxBufferSize: config.buffer.maxSize })
   const notifier = new McpNotifier({
     server: mcpServer.server,

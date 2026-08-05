@@ -14,13 +14,21 @@ export const AgentAuditConfigSchema = z.object({
   flush: z
     .object({
       intervalMs: z.number().int().positive().default(5000),
-      sizeThreshold: z.number().int().positive().default(100)
+      sizeThreshold: z.number().int().positive().default(100),
+      pendingLimit: z.number().int().positive().optional(),
+      retry: z
+        .object({
+          maxAttempts: z.number().int().nonnegative().default(3),
+          baseDelayMs: z.number().int().nonnegative().default(100),
+          backoffFactor: z.number().positive().default(3)
+        })
+        .optional()
     })
     .default({}),
   writers: z
     .array(
       z.object({
-        type: z.literal('jsonl'),
+        type: z.string().min(1),
         filePath: z.string().min(1)
       })
     )

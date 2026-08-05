@@ -7,7 +7,7 @@ import { toolError, toolOk } from './index.js'
 import type { ToolDefinition } from './index.js'
 
 const GetTrailInputSchema = z.object({
-  traceId: z.string().min(1),
+  traceId: z.string().min(1).max(128),
   phase: EventPhaseSchema.optional(),
   level: LevelSchema.optional(),
   limit: z.number().int().positive().max(1000).optional()

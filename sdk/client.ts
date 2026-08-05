@@ -1,14 +1,14 @@
-import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+﻿import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 import type { AuditClient, AuditClientOptions, AuditRecordInput } from './types.js'
 // 审计客户端实现：内部持有 MCP Client，首次调用时懒连接
 export class AuditClientImpl implements AuditClient {
   private readonly options: AuditClientOptions
-  private readonly client: Client
+  private client: Client
   private transport: Transport | undefined
   private connected = false
-  private disabled = false
+  private disabledUntil = 0
   private warned = false
   private traceId: string | null = null
   constructor(options: AuditClientOptions) {
@@ -28,9 +28,6 @@ export class AuditClientImpl implements AuditClient {
     return traceId
   }
   async record(input: AuditRecordInput): Promise<unknown> {
-    if (this.options.enabled === false || this.disabled) {
-      return null
-    }
     const traceId = await this.resolveTraceId(input)
     if (traceId === null) {
       return null
@@ -50,19 +47,27 @@ export class AuditClientImpl implements AuditClient {
       outcome: input.outcome
     })
   }
+  // 无论是否 connected 都关闭 client 与 transport，防止子进程泄漏
   async close(): Promise<void> {
     try {
-      if (this.connected) {
-        await this.client.close()
-      }
+      await this.client.close()
     } catch {
       // 关闭异常静默忽略
+    }
+    const transport = this.transport
+    if (transport !== undefined) {
+      try {
+        await transport.close()
+      } catch {
+        // 关闭异常静默忽略
+      }
+      this.transport = undefined
     }
     this.connected = false
   }
   // 统一守卫：enabled/disabled 短路、懒连接、超时调用、失败降级
   private async callGuarded(name: string, params: Record<string, unknown>): Promise<unknown> {
-    if (this.options.enabled === false || this.disabled) {
+    if (this.options.enabled === false || Date.now() < this.disabledUntil) {
       return null
     }
     try {
@@ -73,15 +78,25 @@ export class AuditClientImpl implements AuditClient {
       return null
     }
   }
-  // 懒连接：连接成功前不创建 transport，异常统一走 failOnce 降级
+  // 懒连接：transport 先赋给 this，连接失败立即关闭避免子进程泄漏
   private async ensureConnected(): Promise<void> {
     if (this.connected) {
       return
     }
     const transport = await this.createTransport()
-    await this.client.connect(transport)
     this.transport = transport
-    this.connected = true
+    try {
+      await this.connectWithTimeout(transport)
+      this.connected = true
+    } catch (error) {
+      try {
+        await transport.close()
+      } catch {
+        // 关闭异常静默忽略
+      }
+      this.transport = undefined
+      throw error
+    }
   }
   // traceId 解析：优先用 input 提供的，否则懒启动追踪
   private async resolveTraceId(input: AuditRecordInput): Promise<string | null> {
@@ -106,38 +121,37 @@ export class AuditClientImpl implements AuditClient {
   }
   // 带超时的 callTool：超时按失败处理，由 callGuarded 兜底
   private callToolWithTimeout(name: string, params: Record<string, unknown>): Promise<unknown> {
+    return this.withTimeout(this.client.callTool({ name, arguments: params }), '审计调用超时: ' + name)
+  }
+  // 连接超时兜底：与 callTool 复用同一 timeoutMs，避免首调用无限阻塞
+  private connectWithTimeout(transport: Transport): Promise<void> {
+    return this.withTimeout(this.client.connect(transport), '审计连接超时')
+  }
+  // Promise.race 统一超时包装：timer 在 settled 后清理
+  private withTimeout<T>(task: Promise<T>, message: string): Promise<T> {
     const timeoutMs = this.options.timeoutMs ?? 2000
     let timer: ReturnType<typeof setTimeout> | undefined
     const guard = new Promise<never>((resolve, reject) => {
-      timer = setTimeout(() => reject(new Error('审计调用超时: ' + name)), timeoutMs)
+      timer = setTimeout(() => reject(new Error(message)), timeoutMs)
     })
-    const call = this.client.callTool({ name, arguments: params })
-    const raced = Promise.race([call, guard])
-    return raced.finally(() => clearTimeout(timer))
+    return Promise.race([task, guard]).finally(() => clearTimeout(timer))
   }
-  // 首次失败置 disabled 并写一次 stderr 提示，之后静默
+  // 失败进入冷却期：冷却后可重连而非永久禁用；首次失败写一次 stderr 提示
   private failOnce(error: unknown): void {
-    if (this.warned) {
-      return
+    const cooldownMs = this.options.cooldownMs ?? 30000
+    this.disabledUntil = Date.now() + cooldownMs
+    if (!this.warned) {
+      this.warned = true
+      const message = error instanceof Error ? error.message : String(error)
+      process.stderr.write('[agent-audit-sdk] 审计 Server 不可用，已降级为 no-op: ' + message + '\n')
     }
-    this.disabled = true
-    this.warned = true
-    const message = error instanceof Error ? error.message : String(error)
-    process.stderr.write('[agent-audit-sdk] 审计 Server 不可用，已降级为 no-op: ' + message + '\n')
   }
 }
 // 从 callTool 响应中解析 traceId，解析失败返回 null
 function parseTraceId(result: unknown): string | null {
   try {
-    const content = (result as { content?: unknown[] }).content
-    if (content === undefined || content.length === 0) {
-      return null
-    }
-    const first = content[0]
-    if (typeof first !== 'object' || first === null) {
-      return null
-    }
-    const text = (first as { text?: unknown }).text
+    const first = (result as { content?: unknown[] }).content?.[0]
+    const text = first !== null && typeof first === 'object' ? (first as { text?: unknown }).text : undefined
     if (typeof text !== 'string') {
       return null
     }

@@ -6,13 +6,13 @@ import type { AgentAuditConfig } from './schema.js'
 
 const WritersSchema = z.array(
   z.object({
-    type: z.literal('jsonl'),
+    type: z.string().min(1),
     filePath: z.string().min(1)
   })
 )
 
 interface EnvPartial {
-  flush?: { intervalMs?: number; sizeThreshold?: number }
+  flush?: { intervalMs?: number; sizeThreshold?: number; retry?: { maxAttempts?: number }; pendingLimit?: number }
   [key: string]: unknown
 }
 
@@ -82,6 +82,37 @@ const ENV_HANDLERS: Record<string, (raw: string) => EnvPartial> = {
   AGENT_AUDIT_NOTIFICATIONS: parseNotifications
 }
 
+function parseFlushInterval(env: Record<string, string | undefined>): EnvPartial | undefined {
+  const raw = env.AGENT_AUDIT_FLUSH_INTERVAL
+  if (raw === undefined) {
+    return undefined
+  }
+  return { flush: { intervalMs: parsePositiveInt('AGENT_AUDIT_FLUSH_INTERVAL', raw) } }
+}
+
+function parseFlushThreshold(env: Record<string, string | undefined>): EnvPartial | undefined {
+  const raw = env.AGENT_AUDIT_FLUSH_THRESHOLD
+  if (raw === undefined) {
+    return undefined
+  }
+  return { flush: { sizeThreshold: parsePositiveInt('AGENT_AUDIT_FLUSH_THRESHOLD', raw) } }
+}
+
+function parseFlushRetry(env: Record<string, string | undefined>): EnvPartial | undefined {
+  const raw = env.AGENT_AUDIT_FLUSH_RETRY
+  if (raw === undefined) {
+    return undefined
+  }
+  return { flush: { retry: { maxAttempts: parsePositiveInt('AGENT_AUDIT_FLUSH_RETRY', raw) } } }
+}
+
+function mergeFlush(result: Partial<AgentAuditConfig>, partial: EnvPartial | undefined): Partial<AgentAuditConfig> {
+  if (partial === undefined) {
+    return result
+  }
+  return { ...result, flush: { ...result.flush, ...partial.flush } } as Partial<AgentAuditConfig>
+}
+
 export function parseEnvConfig(env: Record<string, string | undefined>): Partial<AgentAuditConfig> {
   let result: Partial<AgentAuditConfig> = {}
   for (const envKey of Object.keys(ENV_HANDLERS)) {
@@ -92,19 +123,8 @@ export function parseEnvConfig(env: Record<string, string | undefined>): Partial
     const partial = ENV_HANDLERS[envKey](raw)
     result = { ...result, ...partial } as Partial<AgentAuditConfig>
   }
-  const flushInterval = env.AGENT_AUDIT_FLUSH_INTERVAL
-  if (flushInterval !== undefined) {
-    result.flush = {
-      ...result.flush,
-      intervalMs: parsePositiveInt('AGENT_AUDIT_FLUSH_INTERVAL', flushInterval)
-    } as AgentAuditConfig['flush']
-  }
-  const flushThreshold = env.AGENT_AUDIT_FLUSH_THRESHOLD
-  if (flushThreshold !== undefined) {
-    result.flush = {
-      ...result.flush,
-      sizeThreshold: parsePositiveInt('AGENT_AUDIT_FLUSH_THRESHOLD', flushThreshold)
-    } as AgentAuditConfig['flush']
-  }
+  result = mergeFlush(result, parseFlushInterval(env))
+  result = mergeFlush(result, parseFlushThreshold(env))
+  result = mergeFlush(result, parseFlushRetry(env))
   return result
 }

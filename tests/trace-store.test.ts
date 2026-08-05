@@ -110,3 +110,27 @@ test('getTrail 返回只读快照', () => {
   const second = store.getTrail(session.traceId)
   assert.equal(second.events.length, 1)
 })
+
+test('maxTraces 超限时淘汰最老的 completed trace', () => {
+  const store = new TraceStore({ maxBufferSize: 10, maxTraces: 2 })
+  const t1 = store.startTrace({ agentName: 'a', taskIntent: '1' })
+  const t2 = store.startTrace({ agentName: 'a', taskIntent: '2' })
+  const t3 = store.startTrace({ agentName: 'a', taskIntent: '3' })
+  store.endTrace(t1.traceId, 'completed')
+  store.endTrace(t2.traceId, 'completed')
+  store.endTrace(t3.traceId, 'completed')
+  const t4 = store.startTrace({ agentName: 'a', taskIntent: '4' })
+  assert.equal(store.getSession(t1.traceId), undefined)
+  assert.equal(store.getSession(t2.traceId), undefined)
+  assert.equal(store.getSession(t3.traceId)?.traceId, t3.traceId)
+  assert.equal(store.getSession(t4.traceId)?.traceId, t4.traceId)
+})
+
+test('traceTtlMs 过期后 completed trace 被淘汰', async () => {
+  const store = new TraceStore({ maxBufferSize: 10, maxTraces: 10, traceTtlMs: 10 })
+  const t1 = store.startTrace({ agentName: 'a', taskIntent: '1' })
+  store.endTrace(t1.traceId, 'completed')
+  await new Promise((resolve) => setTimeout(resolve, 30))
+  store.startTrace({ agentName: 'a', taskIntent: '2' })
+  assert.equal(store.getSession(t1.traceId), undefined)
+})

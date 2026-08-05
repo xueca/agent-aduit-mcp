@@ -134,3 +134,19 @@ test('eventId 与 traceId 都未提供返回 AUDIT_INVALID_EVENT', async (t) => 
   const body = parseResult(result)
   assert.equal(body.code, 'AUDIT_INVALID_EVENT')
 })
+
+test('大文件流式导出不 OOM（2 万条事件）', async (t) => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'audit-export-'))
+  t.after(() => fs.rm(dir, { recursive: true, force: true }))
+  const events: AgentLogEvent[] = []
+  for (let i = 0; i < 20000; i += 1) {
+    events.push(makeEvent({ eventId: 'evt-' + i, phase: 'EXECUTION', message: '事件' + i, timestamp: '2026-08-04T01:00:00.000Z' }))
+  }
+  await writeEvents(dir, 'audit-2026-08-04.jsonl', events)
+  const tool = createExportReportTool([dir])
+  const result = await tool.handler({ traceId: TRACE_ID })
+  const body = parseResult(result)
+  assert.equal(body.ok, true)
+  const report = body.report as string
+  assert.ok(report.includes('**事件总数**: 20000'))
+})

@@ -8,6 +8,19 @@ export interface JsonlWriterOptions {
   retentionDays?: number
 }
 
+function safeStringify(value: unknown): string {
+  const seen = new WeakSet<object>()
+  return JSON.stringify(value, (_key, current) => {
+    if (typeof current === 'object' && current !== null) {
+      if (seen.has(current)) {
+        return '[Circular]'
+      }
+      seen.add(current)
+    }
+    return current
+  })
+}
+
 export class JsonlWriter implements IWriter {
   private readonly dirPath: string
   private readonly maxBytes: number
@@ -32,7 +45,7 @@ export class JsonlWriter implements IWriter {
   async write(events: unknown[]): Promise<void> {
     for (const event of events) {
       await this.ensureCurrentFile()
-      const line = JSON.stringify(event) + '\n'
+      const line = safeStringify(event) + '\n'
       await fs.appendFile(this.currentFilePath, line, 'utf8')
       await this.maybeRotate()
     }
@@ -44,8 +57,8 @@ export class JsonlWriter implements IWriter {
 
   async healthCheck(): Promise<boolean> {
     try {
-      const stats = await fs.stat(this.currentFilePath)
-      return stats.isFile()
+      const entries = await fs.readdir(this.dirPath)
+      return entries.some((entry) => this.isAuditFile(entry))
     } catch {
       return false
     }

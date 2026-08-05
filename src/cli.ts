@@ -1,12 +1,14 @@
 ﻿#!/usr/bin/env node
 // CLI 入口：解析参数、加载配置、连接 stdio 启动 MCP Server
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { AgentAuditConfig } from './config/schema.js'
 import { loadConfig } from './config/loader.js'
 import { AUDIT_ERROR_CODES, AuditError } from './errors/audit-error.js'
 import { LevelSchema } from './models/event.js'
 import type { Level } from './models/event.js'
 import { createAuditServer } from './server.js'
+import type { AuditService } from './core/audit-service.js'
 
 interface CliOptions {
   logLevel?: string
@@ -58,6 +60,48 @@ function validateLevel(level: string): Level {
   return result.data
 }
 
+async function flushOnExit(service: AuditService): Promise<void> {
+  try {
+    await service.shutdown()
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    process.stderr.write('[agent-audit] 退出前落盘失败: ' + message + '\n')
+  }
+}
+
+function attachExitHandlers(service: AuditService, server: McpServer): void {
+  let stopping = false
+  let flushed = false
+
+  const shutdownService = (): Promise<void> => {
+    if (flushed) {
+      return Promise.resolve()
+    }
+    flushed = true
+    return flushOnExit(service)
+  }
+
+  const stop = async (): Promise<void> => {
+    if (stopping) {
+      return
+    }
+    stopping = true
+    await shutdownService()
+    await server.close()
+    process.exit(0)
+  }
+
+  process.on('beforeExit', () => {
+    void shutdownService()
+  })
+  process.on('SIGINT', () => {
+    void stop()
+  })
+  process.on('SIGTERM', () => {
+    void stop()
+  })
+}
+
 async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2))
   const overrides: Partial<AgentAuditConfig> = {}
@@ -68,22 +112,7 @@ async function main(): Promise<void> {
   const { server, service } = await createAuditServer(config)
   const transport = new StdioServerTransport()
   await server.connect(transport)
-  let stopping = false
-  const stop = async () => {
-    if (stopping) {
-      return
-    }
-    stopping = true
-    await service.shutdown()
-    await server.close()
-    process.exit(0)
-  }
-  process.on('SIGINT', () => {
-    void stop()
-  })
-  process.on('SIGTERM', () => {
-    void stop()
-  })
+  attachExitHandlers(service, server)
 }
 
 const mainPromise = main()

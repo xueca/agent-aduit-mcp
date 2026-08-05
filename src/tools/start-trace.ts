@@ -6,9 +6,9 @@ import { toolError, toolOk } from './index.js'
 import type { ToolDefinition } from './index.js'
 
 const StartTraceInputSchema = z.object({
-  agentName: z.string().min(1),
-  taskIntent: z.string().min(1),
-  context: z.string().optional()
+  agentName: z.string().min(1).max(1024),
+  taskIntent: z.string().min(1).max(1024),
+  context: z.string().max(1024).optional()
 })
 
 export function createStartTraceTool(service: AuditService): ToolDefinition {

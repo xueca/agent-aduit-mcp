@@ -1,6 +1,7 @@
 // 报告构建：从 JSONL 事件生成人类可读的 Markdown 报告
-import { promises as fs } from 'node:fs'
+import { createReadStream, promises as fs } from 'node:fs'
 import * as path from 'node:path'
+import * as readline from 'node:readline'
 import type { AgentLogEvent } from '../models/event.js'
 
 function isAuditFile(fileName: string): boolean {
@@ -18,19 +19,9 @@ async function sortedAuditFiles(dir: string): Promise<string[]> {
 export async function findEventById(dir: string, eventId: string): Promise<AgentLogEvent | undefined> {
   const fileNames = await sortedAuditFiles(dir)
   for (const fileName of fileNames) {
-    const content = await fs.readFile(path.join(dir, fileName), 'utf8')
-    const lines = content.split('\n')
-    for (const line of lines) {
-      if (line.trim().length === 0) {
-        continue
-      }
-      try {
-        const parsed = JSON.parse(line) as AgentLogEvent
-        if (parsed.eventId === eventId) {
-          return parsed
-        }
-      } catch {
-        // 跳过无法解析的行
+    for await (const event of streamEvents(path.join(dir, fileName))) {
+      if (event.eventId === eventId) {
+        return event
       }
     }
   }
@@ -41,23 +32,33 @@ export async function findEventsByTraceId(dir: string, traceId: string): Promise
   const events: AgentLogEvent[] = []
   const fileNames = await sortedAuditFiles(dir)
   for (const fileName of fileNames) {
-    const content = await fs.readFile(path.join(dir, fileName), 'utf8')
-    const lines = content.split('\n')
-    for (const line of lines) {
-      if (line.trim().length === 0) {
-        continue
-      }
-      try {
-        const parsed = JSON.parse(line) as AgentLogEvent
-        if (parsed.traceId === traceId) {
-          events.push(parsed)
-        }
-      } catch {
-        // 跳过无法解析的行
+    for await (const event of streamEvents(path.join(dir, fileName))) {
+      if (event.traceId === traceId) {
+        events.push(event)
       }
     }
   }
   return events
+}
+
+// 逐行流式读取 JSONL：防止大文件整读 OOM，无效行跳过
+async function* streamEvents(filePath: string): AsyncGenerator<AgentLogEvent> {
+  const stream = createReadStream(filePath, { encoding: 'utf8' })
+  const rl = readline.createInterface({ input: stream, crlfDelay: Infinity })
+  try {
+    for await (const line of rl) {
+      if (line.trim().length === 0) {
+        continue
+      }
+      try {
+        yield JSON.parse(line) as AgentLogEvent
+      } catch {
+        // 跳过无法解析的行
+      }
+    }
+  } finally {
+    rl.close()
+  }
 }
 
 export function buildEventReport(event: AgentLogEvent): string {

@@ -2,13 +2,14 @@
     "version":  "0.1.0",
     "repository":  {
                        "type":  "git",
-                       "url":  "https://github.com/xueca/agent-aduit-mcp.git"
+                       "url":  "https://github.com/xueca/agent-audit-mcp.git"
                    },
     "files":  [
                   "dist/",
                   "README.md",
                   "LICENSE",
-                  "docs/",
+                  "docs/usage.md",
+                  "docs/cg-integration.md",
                   "package.json",
                   "tsconfig.json"
               ],
@@ -44,7 +45,7 @@
                 },
     "description":  "Protocol-level behavioral audit MCP Server for AI Agents",
     "engines":  {
-                    "node":  "\u003e=18.0.0"
+                    "node":  "\u003e=21.0.0"
                 },
     "license":  "MIT",
     "keywords":  [
@@ -57,7 +58,7 @@
                      "event-sourcing"
                  ],
     "author":  "xueca",
-    "homepage":  "https://github.com/xueca/agent-aduit-mcp",
+    "homepage":  "https://github.com/xueca/agent-audit-mcp",
     "main":  "dist/src/index.js",
     "bin":  {
                 "agent-audit":  "./dist/src/cli.js"

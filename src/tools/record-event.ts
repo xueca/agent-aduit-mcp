@@ -7,16 +7,16 @@ import { toolError, toolOk } from './index.js'
 import type { ToolDefinition } from './index.js'
 
 const RecordEventInputSchema = z.object({
-  traceId: z.string().min(1),
+  traceId: z.string().min(1).max(128),
   phase: EventPhaseSchema,
   level: LevelSchema.optional(),
-  message: z.string().min(1),
+  message: z.string().min(1).max(65536),
   metadata: AgentEventMetadataSchema.optional(),
   error: z
     .object({
-      code: z.string().min(1),
-      message: z.string().min(1),
-      stack: z.string().optional()
+      code: z.string().min(1).max(1024),
+      message: z.string().min(1).max(4096),
+      stack: z.string().max(16384).optional()
     })
     .optional()
 })

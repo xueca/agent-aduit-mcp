@@ -4,6 +4,11 @@ import assert from 'node:assert/strict'
 import { promises as fs } from 'node:fs'
 import * as path from 'node:path'
 import { LoggingMessageNotificationSchema } from '@modelcontextprotocol/sdk/types.js'
+import { DEFAULT_CONFIG } from '../src/config/defaults.js'
+import type { AgentAuditConfig } from '../src/config/schema.js'
+import { AUDIT_ERROR_CODES, AuditError } from '../src/errors/audit-error.js'
+import { createAuditServer, registerWriter } from '../src/server.js'
+import type { IWriter } from '../src/writers/interface.js'
 import {
   callToolOk,
   cleanup,
@@ -134,4 +139,22 @@ test('end_trace 后 JSONL 文件行数等于事件数', async (t) => {
   const rawLines = content.split('\n')
   const lines = rawLines.filter((line) => line.length > 0)
   assert.equal(lines.length, 2)
+})
+
+test('registerWriter 注册自定义 writer 工厂并被 createAuditServer 使用', async () => {
+  let factoryCalls = 0
+  registerWriter('memory', () => {
+    factoryCalls += 1
+    return { initialize: async () => {}, write: async () => {}, flush: async () => {}, healthCheck: async () => true, shutdown: async () => {} } as IWriter
+  })
+  const bundle = await createAuditServer({ ...DEFAULT_CONFIG, writers: [{ type: 'memory', filePath: 'mem://x' }] })
+  assert.equal(factoryCalls, 1)
+  await Promise.all([bundle.service.shutdown(), bundle.server.close()])
+})
+
+test('未注册 writer 类型与重复路径均抛 CONFIG_INVALID', async () => {
+  const unknown = { ...DEFAULT_CONFIG, writers: [{ type: 'unknown-writer', filePath: './x' }] }
+  const dup = { ...DEFAULT_CONFIG, writers: [{ type: 'jsonl', filePath: './dup' }, { type: 'jsonl', filePath: './dup' }] }
+  await assert.rejects(createAuditServer(unknown), (error) => error instanceof AuditError && error.code === AUDIT_ERROR_CODES.CONFIG_INVALID)
+  await assert.rejects(createAuditServer(dup), (error) => error instanceof AuditError && error.code === AUDIT_ERROR_CODES.CONFIG_INVALID)
 })

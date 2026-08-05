@@ -9,8 +9,6 @@ export {
 export type { AgentLogEvent, AgentEventMetadata, EventPhase, Level } from './models/event.js'
 export { TraceSessionSchema } from './models/session.js'
 export type { TraceSession } from './models/session.js'
-export { BlueprintRecordSchema } from './models/blueprint.js'
-export type { BlueprintRecord } from './models/blueprint.js'
 export { RingBuffer } from './buffer/ring-buffer.js'
 export type { RingBufferOptions } from './buffer/ring-buffer.js'
 export { CompositeWriter } from './writers/composite-writer.js'

@@ -6,7 +6,7 @@ import { toolError, toolOk } from './index.js'
 import type { ToolDefinition } from './index.js'
 
 const EndTraceInputSchema = z.object({
-  traceId: z.string().min(1),
+  traceId: z.string().min(1).max(128),
   outcome: z.enum(['completed', 'failed']).default('completed')
 })
 

@@ -49,3 +49,43 @@ test('healthCheck flush and shutdown do not throw', async () => {
     await fs.rm(tempDir, { recursive: true, force: true })
   }
 })
+
+test('circular metadata 落盘不崩溃且输出 [Circular]', async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'agent-audit-'))
+  const writer = new JsonlWriter({ filePath: tempDir })
+  try {
+    await writer.initialize()
+    const meta: Record<string, unknown> = { name: 'loop' }
+    meta.self = meta
+    await writer.write([{ eventId: 'e1', metadata: meta }])
+    const files = await fs.readdir(tempDir)
+    const auditFile = files.find((name) => name.startsWith('audit-'))
+    assert.ok(auditFile !== undefined)
+    const filePath = path.join(tempDir, auditFile)
+    const content = await fs.readFile(filePath, 'utf8')
+    const lines = content.split('\n').filter((line) => line.length > 0)
+    assert.equal(lines.length, 1)
+    const parsed = JSON.parse(lines[0]) as Record<string, unknown>
+    const metadata = parsed.metadata as Record<string, unknown>
+    assert.equal(metadata.self, '[Circular]')
+  } finally {
+    await fs.rm(tempDir, { recursive: true, force: true })
+  }
+})
+
+test('旋转后 healthCheck 检查目录内文件仍健康', async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'agent-audit-'))
+  const writer = new JsonlWriter({ filePath: tempDir, maxFileSizeMb: 0.000001 })
+  try {
+    await writer.initialize()
+    await writer.write([{ eventId: 'e1' }])
+    await writer.write([{ eventId: 'e2' }])
+    const healthy = await writer.healthCheck()
+    assert.equal(healthy, true)
+    const files = await fs.readdir(tempDir)
+    const auditFiles = files.filter((name) => name.startsWith('audit-'))
+    assert.ok(auditFiles.length >= 1)
+  } finally {
+    await fs.rm(tempDir, { recursive: true, force: true })
+  }
+})

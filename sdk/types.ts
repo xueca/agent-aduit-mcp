@@ -19,6 +19,7 @@ export interface AuditClientOptions {
   args?: string[]
   taskIntent?: string
   timeoutMs?: number
+  cooldownMs?: number
   enabled?: boolean
   transportFactory?: () => Transport | Promise<Transport>
 }
