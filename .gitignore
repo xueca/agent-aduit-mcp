@@ -1,0 +1,14 @@
+# Runtime artifacts (created on first run)
+audit-events.jsonl/
+
+# Node
+node_modules/
+
+# Build output
+dist/
+
+# Test coverage
+coverage/
+
+# Logs
+*.log

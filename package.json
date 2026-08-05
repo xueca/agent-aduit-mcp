@@ -1,0 +1,65 @@
+{
+    "version":  "0.1.0",
+    "repository":  {
+                       "type":  "git",
+                       "url":  "https://github.com/xueca/agent-aduit-mcp.git"
+                   },
+    "files":  [
+                  "dist/",
+                  "README.md",
+                  "LICENSE",
+                  "docs/",
+                  "package.json",
+                  "tsconfig.json"
+              ],
+    "devDependencies":  {
+                            "@types/node":  "^22.0.0",
+                            "@typescript-eslint/parser":  "^8.0.0",
+                            "eslint":  "^8.57.0",
+                            "typescript":  "^5.5.0"
+                        },
+    "dependencies":  {
+                         "@modelcontextprotocol/sdk":  "^1.29.0",
+                         "zod":  "^3.23.0"
+                     },
+    "name":  "@agent-audit/mcp-server",
+    "scripts":  {
+                    "build":  "tsc",
+                    "typecheck":  "tsc --noEmit",
+                    "test":  "npm run build \u0026\u0026 node --test dist/tests/*.test.js",
+                    "clean":  "node -e \"require(\u0027fs\u0027).rmSync(\u0027dist\u0027, { recursive: true, force: true })\"",
+                    "lint":  "eslint \"src/**/*.ts\" \"tests/**/*.ts\" \"sdk/**/*.ts\" \"examples/**/*.ts\"",
+                    "prepublishOnly":  "npm run clean \u0026\u0026 npm run build \u0026\u0026 npm run typecheck \u0026\u0026 npm run test"
+                },
+    "exports":  {
+                    ".":  {
+                              "types":  "./dist/src/index.d.ts",
+                              "default":  "./dist/src/index.js"
+                          },
+                    "./sdk":  {
+                                  "types":  "./dist/sdk/index.d.ts",
+                                  "default":  "./dist/sdk/index.js"
+                              },
+                    "./package.json":  "./package.json"
+                },
+    "description":  "Protocol-level behavioral audit MCP Server for AI Agents",
+    "engines":  {
+                    "node":  "\u003e=18.0.0"
+                },
+    "license":  "MIT",
+    "keywords":  [
+                     "mcp",
+                     "agent",
+                     "audit",
+                     "observability",
+                     "tracing",
+                     "behavior-audit",
+                     "event-sourcing"
+                 ],
+    "author":  "xueca",
+    "homepage":  "https://github.com/xueca/agent-aduit-mcp",
+    "main":  "dist/src/index.js",
+    "bin":  {
+                "agent-audit":  "./dist/src/cli.js"
+            }
+}
