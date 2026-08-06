@@ -1,6 +1,6 @@
-# @agent-audit/mcp-server
+# @xueca/agent-audit-mcp
 
-[![GitHub Packages](https://img.shields.io/badge/GitHub%20Packages-@agent--audit/mcp--server-blue)](https://github.com/xueca/agent-audit-mcp/pkgs/npm/@agent-audit/mcp-server)
+[![npm version](https://img.shields.io/npm/v/@xueca/agent-audit-mcp)](https://www.npmjs.com/package/@xueca/agent-audit-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js >= 21](https://img.shields.io/badge/Node.js-%3E%3D%2021-brightgreen)](https://nodejs.org/)
 
@@ -27,7 +27,7 @@ Agent 修复任务的行为审计 MCP Server：让 AI Agent 从输入、推理�
 
 ## 项目简介
 
-AI Agent 在自动修复代码时往往像"黑盒"：改了什么、为什么改、验证结果如何，事后难以追溯。`@agent-audit/mcp-server` 以 MCP 工具 + JSONL 落盘 + SDK 自动注入的方式，把 Agent 的修复任务记录为结构化事件流（trace + event），提供**全程清晰日志**：何时开始、每个阶段发生了什么、最终结果如何，均可查询与回放。
+AI Agent 在自动修复代码时往往像"黑盒"：改了什么、为什么改、验证结果如何，事后难以追溯。`@xueca/agent-audit-mcp` 以 MCP 工具 + JSONL 落盘 + SDK 自动注入的方式，把 Agent 的修复任务记录为结构化事件流（trace + event），提供**全程清晰日志**：何时开始、每个阶段发生了什么、最终结果如何，均可查询与回放。
 
 ## 前置要求
 
@@ -36,9 +36,13 @@ AI Agent 在自动修复代码时往往像"黑盒"：改了什么、为什么改
 
 ## 安装
 
-### 方式一：本地构建（推荐，包尚未发布 npm）
+### 方式一：从 npm 安装（推荐）
 
-包尚未发布到 npm registry（`npm install @agent-audit/mcp-server` 会返回 E404），请使用本地构建方式：
+```bash
+npm install @xueca/agent-audit-mcp --save-dev
+```
+
+### 方式二：本地构建
 
 ```bash
 git clone https://github.com/xueca/agent-audit-mcp.git
@@ -59,14 +63,14 @@ npm run build
 {
   "mcpServers": {
     "agent-audit": {
-      "command": "node",
-      "args": ["<仓库路径>/dist/src/cli.js"]
+      "command": "npx",
+      "args": ["-y", "@xueca/agent-audit-mcp"]
     }
   }
 }
 ```
 
-将 `command` 指向本地构建产物 `dist/src/cli.js` 即可。启动后即暴露 5 个审计工具，事件默认落盘到 `./audit-events.jsonl/` 目录（按天生成 `audit-YYYY-MM-DD.jsonl`）。
+启动后即暴露 5 个审计工具，事件默认落盘到 `./audit-events.jsonl/` 目录（按天生成 `audit-YYYY-MM-DD.jsonl`）。
 
 > 本项目已通过 [.trae/mcp.json](../../.trae/mcp.json) 预配置 agent-audit，Trae 打开项目后 Agent 自动可用，无需手动注册。
 
@@ -180,13 +184,13 @@ SDK 通过包的 `./sdk` 子路径导出（`package.json` exports `./sdk`），�
 ### 手动埋点：createAuditClient
 
 ```ts
-import { createAuditClient } from '@agent-audit/mcp-server/sdk'
+import { createAuditClient } from '@xueca/agent-audit-mcp/sdk'
 
 const client = createAuditClient({
   agentName: 'demo-agent',
   taskIntent: '修复 D1 路径穿越',
-  command: 'node',
-  args: ['dist/src/cli.js']
+  command: 'npx',
+  args: ['-y', '@xueca/agent-audit-mcp']
 })
 
 const traceId = await client.startTrace()
@@ -205,13 +209,13 @@ await client.close()
 ### 自动注入：wrapAgent
 
 ```ts
-import { wrapAgent } from '@agent-audit/mcp-server/sdk'
+import { wrapAgent } from '@xueca/agent-audit-mcp/sdk'
 
 const wrapped = wrapAgent(agent, {
   agentName: 'demo-agent',
   taskIntent: '演示独立接入',
-  command: 'node',
-  args: ['dist/src/cli.js']
+  command: 'npx',
+  args: ['-y', '@xueca/agent-audit-mcp']
 })
 
 // 工具调用后自动记录 EXECUTION 事件（成功 info / 失败 error）

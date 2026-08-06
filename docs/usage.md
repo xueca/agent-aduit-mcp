@@ -2,7 +2,7 @@
 
 ## 这是什么
 
-`@agent-audit/mcp-server` 是一个行为审计 MCP Server：Agent 执行修复任务时，从**输入 → 推理 → 决策 → 执行 → 验证**每个阶段自动记录结构化事件，落盘为 JSONL 文件，并支持**按需导出人类可读的 Markdown 报告**。
+`@xueca/agent-audit-mcp` 是一个行为审计 MCP Server：Agent 执行修复任务时，从**输入 → 推理 → 决策 → 执行 → 验证**每个阶段自动记录结构化事件，落盘为 JSONL 文件，并支持**按需导出人类可读的 Markdown 报告**。
 
 ## 一、快速开始（Codex 已接入）
 
@@ -86,19 +86,19 @@ Agent 会自动调用对应的 `audit_*` 工具，无需你手动操作。
 ### CLI
 
 ```bash
-node dist/src/cli.js --log-level info --config ./agent-audit.config.json
+npx -y @xueca/agent-audit-mcp --log-level info --config ./agent-audit.config.json
 ```
 
 ## 六、SDK（写代码接入）
 
 ```ts
-import { wrapAgent } from "@agent-audit/mcp-server/sdk"
+import { wrapAgent } from "@xueca/agent-audit-mcp/sdk"
 
 const wrapped = wrapAgent(myAgent, {
   agentName: "demo-agent",
   taskIntent: "修复登录接口 400",
   command: "node",
-  args: ["dist/src/cli.js"]
+  args: ["-y", "@xueca/agent-audit-mcp"]
 })
 // tools 已被包装：成功调用自动记录 EXECUTION/info，失败记录 EXECUTION/error
 await wrapped.closeAudit?.()      // 结束审计并落盘
@@ -127,7 +127,7 @@ await wrapped.closeAudit?.()      // 结束审计并落盘
 
 - 传输仅支持 `stdio`（本地开发/单机使用）。
 - `redaction` 脱敏尚未实现（schema 已保留字段）。
-- 未发布 npm（本地构建 `npm run build` 后使用）。
+- 已发布 npm：`npm install @xueca/agent-audit-mcp --save-dev` 后即可使用。
 
 ## 十、开发命令
 
